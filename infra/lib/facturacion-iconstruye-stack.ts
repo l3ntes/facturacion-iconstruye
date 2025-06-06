@@ -18,8 +18,9 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 // S3
 import * as s3 from 'aws-cdk-lib/aws-s3';
 
-// EventBridge
+// EventBridge y CloudWatch
 import * as events from 'aws-cdk-lib/aws-events';
+import * as logs from 'aws-cdk-lib/aws-logs';
 
 // Route 53
 import * as route53 from 'aws-cdk-lib/aws-route53';
@@ -28,10 +29,14 @@ import * as targets from 'aws-cdk-lib/aws-route53-targets';
 import * as apigatewayv2 from '@aws-cdk/aws-apigatewayv2-alpha';
 
 // Infraestructura IaC
-
 export class FacturacionIconstruyeStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+
+    // EventBridge: Event Bus personalizado
+    const eventBus = new events.EventBus(this, 'DteEventBus', {
+      eventBusName: 'poc-facturacion-iconstruye-bus',
+    });
 
     // Lambda: emit DTE Handler
     const emitDteLambda = new lambda.NodejsFunction(this, 'EmitDteLambda', {
@@ -81,6 +86,50 @@ export class FacturacionIconstruyeStack extends Stack {
       },
     });
 
+    // Lambda: firma DTE Handler
+    const firmaDteLambda = new lambda.NodejsFunction(this, 'FirmaDteLambda', {
+      entry: path.resolve(__dirname, '../../lambda/firma-dte.handler.ts'),
+      handler: 'handler',
+      runtime: lambdaRuntime.Runtime.NODEJS_20_X,
+      projectRoot: path.resolve(__dirname, '../../'),
+      bundling: {
+        forceDockerBundling: false,
+        externalModules: [
+          '@nestjs/microservices',
+          '@nestjs/websockets',
+          '@nestjs/websockets/socket-module',
+          '@nestjs/microservices/microservices-module',
+          '@aws-sdk/client-eventbridge',
+        ],
+      },
+      environment: {
+        AWS_EVENTBRIDGE_BUS: eventBus.eventBusName,
+        AWS_REGION: 'us-east-1',
+      },
+    });
+
+    // Lambda: Envio a SII DTE Handler
+    const envioSiiLambda = new lambda.NodejsFunction(this, 'EnvioSiiLambda', {
+      entry: path.resolve(__dirname, '../../lambda/envio-sii.handler.ts'),
+      handler: 'handler',
+      runtime: lambdaRuntime.Runtime.NODEJS_20_X,
+      projectRoot: path.resolve(__dirname, '../../'),
+      bundling: {
+        forceDockerBundling: false,
+        externalModules: [
+          '@nestjs/microservices',
+          '@nestjs/websockets',
+          '@nestjs/websockets/socket-module',
+          '@nestjs/microservices/microservices-module',
+          '@aws-sdk/client-eventbridge',
+        ],
+      },
+      environment: {
+        AWS_EVENTBRIDGE_BUS: eventBus.eventBusName,
+        AWS_REGION: 'us-east-1',
+      },
+    });
+
     // DynamoDB: Tabla DTEs
     const dteTable = new dynamodb.Table(this, 'DteTable', {
       partitionKey: { name: 'folio', type: dynamodb.AttributeType.STRING },
@@ -96,10 +145,44 @@ export class FacturacionIconstruyeStack extends Stack {
       autoDeleteObjects: true,
     });
 
-    // EventBridge: Event Bus personalizado
-    const eventBus = new events.EventBus(this, 'DteEventBus', {
-      eventBusName: 'poc-facturacion-iconstruye-bus',
+    // CloudWatch: LogGroup
+    const eventLogGroup = new logs.LogGroup(this, 'DteEventLogGroup', {
+      logGroupName: '/aws/events/DTEEmitted',
+      retention: logs.RetentionDays.ONE_WEEK,
     });
+
+    // Asocia el LogGroup al EventBus
+    const eventRule = new events.Rule(this, 'DteEmittedRule', {
+      eventBus: eventBus,
+      eventPattern: {
+        source: ['facturacion.iconstruye.dte'],
+        detailType: ['DTE.Emitted'],
+      },
+    });
+
+    eventRule.addTarget(new targets.CloudWatchLogGroup(eventLogGroup));
+
+    // Regla para activar lambda de firma
+    const firmaRule = new events.Rule(this, 'DteEmittedToFirmaRule', {
+      eventBus: eventBus,
+      eventPattern: {
+        source: ['facturacion.iconstruye.dte'],
+        detailType: ['DTE.Emitted'],
+      },
+    });
+
+    firmaRule.addTarget(new targets.LambdaFunction(firmaDteLambda));
+
+    // Regla para activar lambda de envio a SII
+    const envioSiiRule = new events.Rule(this, 'DteSignedToEnvioSiiRule', {
+      eventBus: eventBus,
+      eventPattern: {
+        source: ['facturacion.iconstruye.dte'],
+        detailType: ['DTE.Signed'],
+      },
+    });
+
+    envioSiiRule.addTarget(new targets.LambdaFunction(envioSiiLambda));
 
     // Route53, configuración de dominio
     const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
