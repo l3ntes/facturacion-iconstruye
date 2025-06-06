@@ -48,15 +48,12 @@ jobs:
 
       - name: Install dependencies
         run: yarn install
-        working-directory: infra
 
       - name: Build CDK
-        run: yarn build
-        working-directory: infra
+        run: yarn workspace infra build
 
       - name: CDK Synth
-        run: npx cdk synth
-        working-directory: infra
+        run: yarn workspace infra cdk synth
 
   deploy:
     name: CDK Deploy
@@ -77,15 +74,12 @@ jobs:
 
       - name: Install dependencies
         run: yarn install
-        working-directory: infra
 
       - name: Build CDK
-        run: yarn build
-        working-directory: infra
+        run: yarn workspace infra build
 
       - name: CDK Deploy
-        run: npx cdk deploy --require-approval never
-        working-directory: infra
+        run: yarn workspace infra cdk deploy --require-approval never
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
