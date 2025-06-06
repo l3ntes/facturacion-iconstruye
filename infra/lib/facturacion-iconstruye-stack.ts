@@ -25,7 +25,8 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 // Route 53
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as certificatemanager from 'aws-cdk-lib/aws-certificatemanager';
-import * as targets from 'aws-cdk-lib/aws-route53-targets';
+import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
+import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
 import * as apigatewayv2 from '@aws-cdk/aws-apigatewayv2-alpha';
 
 // Infraestructura IaC
@@ -104,7 +105,6 @@ export class FacturacionIconstruyeStack extends Stack {
       },
       environment: {
         AWS_EVENTBRIDGE_BUS: eventBus.eventBusName,
-        AWS_REGION: 'us-east-1',
       },
     });
 
@@ -126,7 +126,6 @@ export class FacturacionIconstruyeStack extends Stack {
       },
       environment: {
         AWS_EVENTBRIDGE_BUS: eventBus.eventBusName,
-        AWS_REGION: 'us-east-1',
       },
     });
 
@@ -160,7 +159,7 @@ export class FacturacionIconstruyeStack extends Stack {
       },
     });
 
-    eventRule.addTarget(new targets.CloudWatchLogGroup(eventLogGroup));
+    eventRule.addTarget(new eventsTargets.CloudWatchLogGroup(eventLogGroup));
 
     // Regla para activar lambda de firma
     const firmaRule = new events.Rule(this, 'DteEmittedToFirmaRule', {
@@ -171,7 +170,7 @@ export class FacturacionIconstruyeStack extends Stack {
       },
     });
 
-    firmaRule.addTarget(new targets.LambdaFunction(firmaDteLambda));
+    firmaRule.addTarget(new eventsTargets.LambdaFunction(firmaDteLambda));
 
     // Regla para activar lambda de envio a SII
     const envioSiiRule = new events.Rule(this, 'DteSignedToEnvioSiiRule', {
@@ -182,11 +181,11 @@ export class FacturacionIconstruyeStack extends Stack {
       },
     });
 
-    envioSiiRule.addTarget(new targets.LambdaFunction(envioSiiLambda));
+    envioSiiRule.addTarget(new eventsTargets.LambdaFunction(envioSiiLambda));
 
     // Route53, configuración de dominio
-    const hostedZone = new route53.PublicHostedZone(this, 'HostedZone', {
-      zoneName: 'poc-facturacion-iconstruye.com',
+    const hostedZone = route53.HostedZone.fromLookup(this, 'HostedZone', {
+      domainName: 'poc-facturacion-iconstruye.com',
     });
 
     // ACM Certificate y validacion de DNS
@@ -210,7 +209,7 @@ export class FacturacionIconstruyeStack extends Stack {
     new route53.ARecord(this, 'ApiAliasRecord', {
       zone: hostedZone,
       target: route53.RecordTarget.fromAlias(
-        new targets.ApiGatewayv2DomainProperties(
+        new route53Targets.ApiGatewayv2DomainProperties(
           domainName.regionalDomainName,
           domainName.regionalHostedZoneId,
         ),
@@ -242,6 +241,24 @@ export class FacturacionIconstruyeStack extends Stack {
       integration: new integrations.HttpLambdaIntegration(
         'StatusIntegration',
         statusDteLambda,
+      ),
+    });
+
+    api.addRoutes({
+      path: '/swagger',
+      methods: [apigateway.HttpMethod.GET],
+      integration: new integrations.HttpLambdaIntegration(
+        'SwaggerIntegration',
+        emitDteLambda,
+      ),
+    });
+
+    api.addRoutes({
+      path: '/swagger/{proxy+}',
+      methods: [apigateway.HttpMethod.ANY],
+      integration: new integrations.HttpLambdaIntegration(
+        'SwaggerProxyIntegration',
+        emitDteLambda,
       ),
     });
 
