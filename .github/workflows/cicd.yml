@@ -22,15 +22,12 @@ jobs:
 
       - name: Install dependencies
         run: yarn install
-        working-directory: facturacion-iconstruye
 
       - name: Build project
         run: yarn build
-        working-directory: facturacion-iconstruye
 
       - name: Run tests with coverage
         run: yarn test --coverage
-        working-directory: facturacion-iconstruye
 
   synth:
     name: CDK Synth
