@@ -72,7 +72,12 @@ Authorization: Bearer <JWT>
 
 # Documentación - Swagger
 
-``[Swagger - POC Facturacion iConstruye](https://api.poc-facturacion-iconstruye.com/api-docs)```
+``[Swagger - POC Facturacion iConstruye](https://api.poc-facturacion-iconstruye.com/swagger)```
+
+NOTA: En esta arquitectura (Lambda + API Gateway HttpApi), Swagger UI no se sirve correctamente por limitaciones conocidas de aws-serverless-express + HttpApi V2. 
+
+En producción, la recomendación es servir Swagger UI desde S3 + CloudFront o desde un backend dedicado, lo cual no será abordado en este POC ya que para efectos del mismo, el swagger local funciona correctamente.
+
 
 ## EventBridge - Arquitectura basada en eventos
 
