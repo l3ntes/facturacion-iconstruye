@@ -1,6 +1,7 @@
 {
   "name": "facturacion-iconstruye",
-  "version": "0.0.7",
+  "version": "0.0.8",
+  "packageManager": "yarn@3.6.1",
   "description": "",
   "author": "Jorge Molina",
   "private": true,
