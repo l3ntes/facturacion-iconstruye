@@ -1,0 +1,9 @@
+services:
+  api:
+    container_name: facturacion-iconstruye
+    build: .
+    ports:
+      - '${PORT}:${PORT}'
+    env_file:
+      - .env
+    command: yarn start
