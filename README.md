@@ -73,3 +73,49 @@ Authorization: Bearer <JWT>
 # Documentación - Swagger
 
 ``[Swagger - POC Facturacion iConstruye](https://api.poc-facturacion-iconstruye.com/api-docs)```
+
+## EventBridge - Arquitectura basada en eventos
+
+Este POC implementa un flujo basado en eventos:
+
+- Cuando se emite un DTE (`POST /emit`), se publica un evento en **EventBridge**:
+
+  - Bus: `poc-facturacion-iconstruye-bus`
+  - Source: `facturacion.iconstruye.dte`
+  - DetailType: `DTE.Emitted`
+
+- El evento es capturado por una regla de EventBridge, que lo publica en **CloudWatch Logs**.
+
+### Monitoreo de eventos
+
+Puedes visualizar los eventos en: CloudWatch → Logs → Log groups → /aws/events/DTEEmitted
+
+## Flujo de negocio completo - POC Facturación IConstruye
+
+### 1️⃣ POST `/emit`
+
+Cuando se realiza un `POST /emit`, el flujo es:
+
+1️⃣ Se genera un `folio` para el DTE  
+2️⃣ El DTE es guardado como archivo JSON en S3:
+
+```text
+Bucket: poc-facturacion-iconstruye
+Key: dtes/<folio>.json
+```
+
+### 2️⃣ GET ``/status/:folio``
+
+1️⃣ Se consulta DynamoDB (tabla DTEs)
+2️⃣ Si el folio existe → devuelve su estado y timestamp
+3️⃣ Si no existe → devuelve status "No encontrado"
+
+# POC - Facturación IConstruye - LICENSE
+
+---
+
+**Aviso legal:**  
+Este proyecto es propiedad intelectual de Jorge Molina.  
+Su uso, reproducción, modificación o distribución en entornos de producción o con fines comerciales por parte de terceros (incluyendo pero no limitado a la empresa IConstruye) está estrictamente prohibido sin la autorización expresa y por escrito del autor.
+
+---
